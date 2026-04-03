@@ -14,7 +14,6 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const WALLET_ID = process.env.OWS_WALLET_ID;
 const OWS_KEY = process.env.OWS_API_KEY;
 
-// Pending transactions waiting for user approval
 const pendingTx = new Map();
 
 const tools = [
@@ -29,12 +28,12 @@ const tools = [
     input_schema: { type: "object", properties: {}, required: [] }
   },
   {
-    name: "get_balance",
+    name: "get_address_for_chain",
     description: "Returns the address for a specific blockchain",
     input_schema: {
       type: "object",
       properties: {
-        chain: { type: "string", description: "Chain name: ethereum, solana, bitcoin, cosmos" }
+        chain: { type: "string", description: "Chain name: ethereum, solana, bitcoin, cosmos, tron, ton, filecoin, sui" }
       },
       required: ["chain"]
     }
@@ -67,6 +66,19 @@ function runOWS(command) {
   }
 }
 
+function parseWalletList() {
+  const output = runOWS('wallet list');
+  const addresses = {};
+  const lines = output.split('\n');
+  lines.forEach(line => {
+    const match = line.match(/(\w+[\w:.-]+)\s+\((\w+)\)\s+→\s+(\S+)/);
+    if (match) {
+      addresses[match[2]] = { chainId: match[1], address: match[3] };
+    }
+  });
+  return addresses;
+}
+
 function checkPolicy(ctx) {
   try {
     const result = execSync(`node policy.js '${JSON.stringify(ctx)}'`, { encoding: 'utf8' });
@@ -78,43 +90,26 @@ function checkPolicy(ctx) {
 
 function handleTool(name, input) {
   if (name === "get_wallet_info") {
-    const info = runOWS(`wallet list`);
-    return `Wallet Info:\n${info}`;
+    const output = runOWS('wallet list');
+    return `Wallet Info:\n${output}`;
   }
 
   if (name === "get_all_addresses") {
-    const chains = [
-      { id: "eip155:1", label: "Ethereum" },
-      { id: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", label: "Solana" },
-      { id: "bip122:000000000019d6689c085ae165831e93", label: "Bitcoin" },
-      { id: "cosmos:cosmoshub-4", label: "Cosmos" },
-      { id: "tron:mainnet", label: "TRON" },
-      { id: "ton:mainnet", label: "TON" }
-    ];
+    const addresses = parseWalletList();
     let result = "All Addresses:\n";
-    chains.forEach(({ id, label }) => {
-      try {
-        const addr = runOWS(`wallet address --wallet ${WALLET_ID} --chain ${id}`).trim();
-        result += `${label}: ${addr}\n`;
-      } catch(e) {
-        result += `${label}: Could not retrieve\n`;
-      }
+    Object.entries(addresses).forEach(([chain, data]) => {
+      result += `${chain.charAt(0).toUpperCase() + chain.slice(1)}: ${data.address}\n`;
     });
     return result;
   }
 
-  if (name === "get_balance") {
-    const chainMap = {
-      ethereum: "eip155:1",
-      solana: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-      bitcoin: "bip122:000000000019d6689c085ae165831e93",
-      cosmos: "cosmos:cosmoshub-4",
-      tron: "tron:mainnet",
-      ton: "ton:mainnet"
-    };
-    const chain = chainMap[input.chain.toLowerCase()] || input.chain;
-    const addr = runOWS(`wallet address --wallet ${WALLET_ID} --chain ${chain}`).trim();
-    return `${input.chain} address: ${addr}\n(Live balance requires RPC connection — address is ready for mainnet use)`;
+  if (name === "get_address_for_chain") {
+    const addresses = parseWalletList();
+    const chain = input.chain.toLowerCase();
+    if (addresses[chain]) {
+      return `${input.chain} address: ${addresses[chain].address}`;
+    }
+    return `Chain "${input.chain}" not found. Available: ${Object.keys(addresses).join(', ')}`;
   }
 
   if (name === "check_policy") {
@@ -122,8 +117,6 @@ function handleTool(name, input) {
     if (!policyResult.allow) {
       return `🚫 POLICY DENIED: ${policyResult.reason}`;
     }
-
-    // Create pending transaction for user approval
     const txId = Date.now().toString();
     pendingTx.set(txId, {
       ...input,
@@ -131,7 +124,6 @@ function handleTool(name, input) {
       status: 'pending',
       createdAt: new Date().toISOString()
     });
-
     return `✅ POLICY APPROVED: ${policyResult.reason}\n\nTransaction ready for your approval:\n- Chain: ${input.chainId}\n- Description: ${input.description}\n${input.to ? `- To: ${input.to}` : ''}\n\nTransaction ID: ${txId}\nAwaiting user confirmation in the UI.`;
   }
 
@@ -193,7 +185,6 @@ Be concise, helpful, and professional.`;
   }
 });
 
-// Approve or reject a pending transaction
 app.post('/tx/:id/approve', (req, res) => {
   const tx = pendingTx.get(req.params.id);
   if (!tx) return res.status(404).json({ error: 'Transaction not found' });
