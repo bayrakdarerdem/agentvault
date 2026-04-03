@@ -10,11 +10,21 @@ app.use(express.json());
 app.use(express.static('.'));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 const WALLET_ID = process.env.OWS_WALLET_ID;
 const OWS_KEY = process.env.OWS_API_KEY;
-
 const pendingTx = new Map();
+
+// Addresses from environment (public info, keys stay local)
+const ADDRESSES = {
+  ethereum: { address: process.env.ETH_ADDRESS || 'Not configured', chainId: 'eip155:1' },
+  solana: { address: process.env.SOL_ADDRESS || 'Not configured', chainId: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' },
+  bitcoin: { address: process.env.BTC_ADDRESS || 'Not configured', chainId: 'bip122:000000000019d6689c085ae165831e93' },
+  cosmos: { address: process.env.COSMOS_ADDRESS || 'Not configured', chainId: 'cosmos:cosmoshub-4' },
+  tron: { address: process.env.TRON_ADDRESS || 'Not configured', chainId: 'tron:mainnet' },
+  ton: { address: process.env.TON_ADDRESS || 'Not configured', chainId: 'ton:mainnet' },
+  filecoin: { address: process.env.FIL_ADDRESS || 'Not configured', chainId: 'fil:mainnet' },
+  sui: { address: process.env.SUI_ADDRESS || 'Not configured', chainId: 'sui:mainnet' }
+};
 
 const tools = [
   {
@@ -54,31 +64,6 @@ const tools = [
   }
 ];
 
-function runOWS(command) {
-  try {
-    const result = execSync(`ows ${command}`, {
-      encoding: 'utf8',
-      env: { ...process.env, OWS_API_KEY: OWS_KEY }
-    });
-    return result;
-  } catch (e) {
-    return e.stdout || e.message;
-  }
-}
-
-function parseWalletList() {
-  const output = runOWS('wallet list');
-  const addresses = {};
-  const lines = output.split('\n');
-  lines.forEach(line => {
-    const match = line.match(/(\w+[\w:.-]+)\s+\((\w+)\)\s+→\s+(\S+)/);
-    if (match) {
-      addresses[match[2]] = { chainId: match[1], address: match[3] };
-    }
-  });
-  return addresses;
-}
-
 function checkPolicy(ctx) {
   try {
     const result = execSync(`node policy.js '${JSON.stringify(ctx)}'`, { encoding: 'utf8' });
@@ -90,26 +75,27 @@ function checkPolicy(ctx) {
 
 function handleTool(name, input) {
   if (name === "get_wallet_info") {
-    const output = runOWS('wallet list');
-    return `Wallet Info:\n${output}`;
+    let info = `Wallet ID: ${WALLET_ID}\nSecured: AES-256-GCM encrypted (keys stored locally)\n\nAddresses:\n`;
+    Object.entries(ADDRESSES).forEach(([chain, data]) => {
+      info += `${chain.charAt(0).toUpperCase() + chain.slice(1)}: ${data.address}\n`;
+    });
+    return info;
   }
 
   if (name === "get_all_addresses") {
-    const addresses = parseWalletList();
     let result = "All Addresses:\n";
-    Object.entries(addresses).forEach(([chain, data]) => {
+    Object.entries(ADDRESSES).forEach(([chain, data]) => {
       result += `${chain.charAt(0).toUpperCase() + chain.slice(1)}: ${data.address}\n`;
     });
     return result;
   }
 
   if (name === "get_address_for_chain") {
-    const addresses = parseWalletList();
     const chain = input.chain.toLowerCase();
-    if (addresses[chain]) {
-      return `${input.chain} address: ${addresses[chain].address}`;
+    if (ADDRESSES[chain]) {
+      return `${input.chain} address: ${ADDRESSES[chain].address}`;
     }
-    return `Chain "${input.chain}" not found. Available: ${Object.keys(addresses).join(', ')}`;
+    return `Chain "${input.chain}" not found. Available: ${Object.keys(ADDRESSES).join(', ')}`;
   }
 
   if (name === "check_policy") {
