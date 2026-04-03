@@ -1,0 +1,46 @@
+{
+  "name": "@open-wallet-standard/core",
+  "version": "1.2.0",
+  "description": "Node.js native bindings for the Open Wallet Standard",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "bin": {
+    "ows": "bin/ows"
+  },
+  "napi": {
+    "name": "ows-node",
+    "triples": {
+      "defaults": false,
+      "additional": [
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu"
+      ]
+    }
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi build --platform --release",
+    "publish:all": "node publish.mjs",
+    "test": "node --test __test__/index.spec.mjs"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "optionalDependencies": {
+    "@open-wallet-standard/core-linux-x64-gnu": "1.2.0",
+    "@open-wallet-standard/core-linux-arm64-gnu": "1.2.0",
+    "@open-wallet-standard/core-darwin-x64": "1.2.0",
+    "@open-wallet-standard/core-darwin-arm64": "1.2.0"
+  },
+  "license": "MIT",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bin/ows",
+    "README.md"
+  ]
+}

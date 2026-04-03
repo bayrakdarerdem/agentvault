@@ -1,0 +1,16 @@
+{
+  "name": "@open-wallet-standard/core-darwin-arm64",
+  "version": "1.2.0",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "ows-node.darwin-arm64.node",
+  "files": [
+    "ows-node.darwin-arm64.node",
+    "ows"
+  ],
+  "license": "MIT"
+}
