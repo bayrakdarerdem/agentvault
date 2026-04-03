@@ -76,14 +76,14 @@ ows wallet create --name agent-treasury
 ows key create --name agent-token --wallet <wallet-id>
 
 # Clone and run
-git clone https://github.com/yourusername/agentvault
+git clone https://github.com/bayrakdarerdem/agentvault
 cd agentvault
 npm install
 cp .env.example .env  # add your keys
 node server.js
 ```
 
-Open http://localhost:3000
+Open https://agentvault.onrender.com
 
 ## Built for OWS Hackathon
 
